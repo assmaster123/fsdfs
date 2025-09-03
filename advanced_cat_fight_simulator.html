@@ -1,0 +1,139 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Advanced Cat Fight Simulator</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; max-width: 900px; margin: auto; }
+    label { display: inline-block; width: 240px; margin-top: 10px; }
+    input { width: 80px; }
+    button { margin-top: 20px; padding: 10px 20px; }
+    canvas { margin-top: 30px; }
+    .section { margin-top: 30px; }
+  </style>
+</head>
+<body>
+  <h1>Advanced Cat Fight Simulator</h1>
+
+  <div class="section">
+    <h3>Global Settings</h3>
+    <label>Chaos Die (e.g. 4 = 1d4):</label> <input type="number" id="chaosDie" value="4" min="0"><br>
+    <label>Use Chaos Die:</label> <input type="checkbox" id="useChaos" checked><br>
+    <label>Simulations:</label> <input type="number" id="simCount" value="1000" min="100">
+  </div>
+
+  <div class="section">
+    <h3>Cat A Settings</h3>
+    <label>Skill Dice (count):</label> <input type="number" id="aSkillDice" value="3" min="1"><br>
+    <label>Skill Die Sides (e.g. 6 = d6):</label> <input type="number" id="aSkillSides" value="6" min="2"><br>
+    <label>Energy (0.0 - 1.0):</label> <input type="number" id="aEnergy" step="0.1" value="0.4" min="0" max="1"><br>
+    <label>Energy Die Formula:</label> <input type="text" id="energyFormulaA" value="Math.floor((energy * 10) / 2)"><br>
+    <label>Energy Die Sides Max:</label> <input type="number" id="energyMaxA" value="6" min="1">
+  </div>
+
+  <div class="section">
+    <h3>Cat B Settings</h3>
+    <label>Skill Dice (count):</label> <input type="number" id="bSkillDice" value="2" min="1"><br>
+    <label>Skill Die Sides (e.g. 6 = d6):</label> <input type="number" id="bSkillSides" value="6" min="2"><br>
+    <label>Energy (0.0 - 1.0):</label> <input type="number" id="bEnergy" step="0.1" value="0.9" min="0" max="1"><br>
+    <label>Energy Die Formula:</label> <input type="text" id="energyFormulaB" value="Math.floor((energy * 10) / 2)"><br>
+    <label>Energy Die Sides Max:</label> <input type="number" id="energyMaxB" value="6" min="1">
+  </div>
+
+  <button onclick="simulate()">Simulate Fight</button>
+  <canvas id="fightChart" width="800" height="400"></canvas>
+
+  <script>
+    const ctx = document.getElementById('fightChart').getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: [],
+        datasets: [
+          {
+            label: 'Cat A Scores',
+            data: [],
+            backgroundColor: 'rgba(255, 99, 132, 0.6)'
+          },
+          {
+            label: 'Cat B Scores',
+            data: [],
+            backgroundColor: 'rgba(54, 162, 235, 0.6)'
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          x: { title: { display: true, text: 'Total Score' } },
+          y: { title: { display: true, text: 'Frequency' }, beginAtZero: true }
+        }
+      }
+    });
+
+    function rollDice(num, sides) {
+      let total = 0;
+      for (let i = 0; i < num; i++) total += Math.floor(Math.random() * sides) + 1;
+      return total;
+    }
+
+    function simulate() {
+      const getVal = id => document.getElementById(id).value;
+      const parseExpr = (formula, energy) => {
+        try {
+          return Math.max(1, Math.floor(eval(formula)));
+        } catch (e) {
+          return 1;
+        }
+      };
+
+      const aSkillDice = parseInt(getVal("aSkillDice"));
+      const aSkillSides = parseInt(getVal("aSkillSides"));
+      const aEnergy = parseFloat(getVal("aEnergy"));
+      const energyFormulaA = getVal("energyFormulaA");
+      const energyMaxA = parseInt(getVal("energyMaxA"));
+
+      const bSkillDice = parseInt(getVal("bSkillDice"));
+      const bSkillSides = parseInt(getVal("bSkillSides"));
+      const bEnergy = parseFloat(getVal("bEnergy"));
+      const energyFormulaB = getVal("energyFormulaB");
+      const energyMaxB = parseInt(getVal("energyMaxB"));
+
+      const useChaos = document.getElementById("useChaos").checked;
+      const chaosDie = parseInt(getVal("chaosDie"));
+      const simCount = parseInt(getVal("simCount"));
+
+      const aResults = [], bResults = [];
+      let minScore = 100, maxScore = 0;
+
+      for (let i = 0; i < simCount; i++) {
+        const aEnergyDie = Math.min(parseExpr(energyFormulaA, aEnergy), energyMaxA);
+        const bEnergyDie = Math.min(parseExpr(energyFormulaB, bEnergy), energyMaxB);
+
+        const a = rollDice(aSkillDice, aSkillSides) +
+                  (aEnergyDie > 0 ? rollDice(1, aEnergyDie) : 0) +
+                  (useChaos ? rollDice(1, chaosDie) : 0);
+        const b = rollDice(bSkillDice, bSkillSides) +
+                  (bEnergyDie > 0 ? rollDice(1, bEnergyDie) : 0) +
+                  (useChaos ? rollDice(1, chaosDie) : 0);
+
+        aResults.push(a);
+        bResults.push(b);
+        minScore = Math.min(minScore, a, b);
+        maxScore = Math.max(maxScore, a, b);
+      }
+
+      const scoreRange = Array.from({length: maxScore - minScore + 1}, (_, i) => i + minScore);
+      const aFreq = scoreRange.map(score => aResults.filter(x => x === score).length);
+      const bFreq = scoreRange.map(score => bResults.filter(x => x === score).length);
+
+      chart.data.labels = scoreRange;
+      chart.data.datasets[0].data = aFreq;
+      chart.data.datasets[1].data = bFreq;
+      chart.update();
+    }
+  </script>
+</body>
+</html>
